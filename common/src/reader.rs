@@ -3,7 +3,7 @@ use std::ffi::CStr;
 
 use fxhash::FxBuildHasher;
 
-use crate::{FileCoverage, FnIndex, FnCoverage, LineCoverage, BlockCoverage};
+use crate::{FileCoverage, FnCoverage, LineCoverage, BlockCoverage, ProgCoverage};
 
 const GCOV_ARC_ON_TREE: u32 = 1 << 0;
 const GCOV_ARC_FAKE: u32 = 1 << 1;
@@ -295,14 +295,15 @@ impl Gcno {
     }
 }
 
-pub struct GcdaReader {
+#[derive(Clone)]
+pub struct FileCovBuilder {
     gcno: Gcno,
     current_fn_idx: Option<usize>,
     run_counts: u32,
     program_counts: u32,
 }
 
-impl GcdaReader {
+impl FileCovBuilder {
     pub fn new(gcno: Gcno) -> Self {
         Self {
             gcno,
@@ -312,12 +313,12 @@ impl GcdaReader {
         }
     }
 
-    pub fn into_coverage(mut self) -> Result<FileCoverage, Error> {
+    pub fn build(mut self) -> Result<ProgCoverage, Error> {
         self.account_on_tree_arcs()?;
         self.account_lines()?;
 
-        let cwd = self.gcno.cwd.ok_or(Error::Value("function missing cwd"))?;
-        let mut fns = HashMap::with_hasher(FxBuildHasher::default());
+        let cwd = self.gcno.cwd.ok_or(Error::Value("file missing cwd"))?;
+        let mut files = HashMap::with_hasher(FxBuildHasher::default());
 
         for function in self.gcno.functions {
             let lines = function.lines.iter().map(|(&lineno, &exec_count)| LineCoverage {
@@ -329,13 +330,9 @@ impl GcdaReader {
                 executions: block.counter,
             }).collect();
 
-            let fn_idx = FnIndex {
-                start_line: function.start_line,
-                start_col: function.start_col.ok_or(Error::Value("function missing start_col"))?
-            };
-
             let fn_coverage = FnCoverage {
-                name: function.name,
+                start_line: function.start_line,
+                start_col: function.start_col.ok_or(Error::Value("function missing start_col"))?,
                 end_line: function.end_line.ok_or(Error::Value("function missing end_line"))?,
                 end_col: function.end_col.ok_or(Error::Value("function missing end_col"))?,
                 executed_blocks: function.blocks.iter().filter(|b| b.counter > 0).count(),
@@ -344,13 +341,19 @@ impl GcdaReader {
                 lines,
             };
 
-            fns.insert(fn_idx, fn_coverage);
+            let file = files.entry(function.file_name).or_insert(FileCoverage {
+                fns: HashMap::with_hasher(FxBuildHasher::default()),
+            });
+
+            let None = file.fns.insert(function.name, fn_coverage) else {
+                return Err(Error::Value("collision in function names for a given file"))
+            };
         }
 
-        Ok(FileCoverage {
+        Ok(ProgCoverage {
             cwd,
-            fns,
-        })       
+            files,
+        })
     }
 
     fn account_lines(&mut self) -> Result<(), Error> {
@@ -485,7 +488,7 @@ impl GcdaReader {
         excess
     }
 
-    pub fn read(&mut self, input: &[u8]) -> Result<(), Error> {
+    pub fn add_gcda(&mut self, input: &[u8]) -> Result<(), Error> {
         let mut reader = ByteReader::new(input);
 
         let Magic::Gcda = reader.get_magic_number()? else {
@@ -509,7 +512,7 @@ impl GcdaReader {
                 GCOV_TAG_COUNTER_ARCS => self.read_arcs(&mut reader)?,
                 GCOV_TAG_OBJECT_SUMMARY => {
                     log::trace!("parsing gcda object summary element");
-                    let length = reader.get_u32()? as usize;
+                    let length = reader.get_u32()? as usize * 4;
 
                     let run_counts = reader.get_u32()?;
                     reader.get_u32()?; // skip unused value
