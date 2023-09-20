@@ -14,7 +14,7 @@ pub struct ProgCoverage {
 impl ProgCoverage {
     pub fn merge(&mut self, other: ProgCoverage) -> Result<(), String> {
         for (filename, file) in other.files.into_iter() {
-            match self.files.entry(filename) {
+            match self.files.entry(filename.clone()) {
                 std::collections::hash_map::Entry::Occupied(mut old_file) => {
                     if self.cwd != other.cwd {
                         return Err(format!("cwd mismatch in program coverage during merge: `{:?}` vs `{:?}`", self.cwd, other.cwd))
@@ -27,7 +27,7 @@ impl ProgCoverage {
                                 //old_fn.get_mut().executed_blocks += function.executed_blocks;
                                 //old_fn.insert(function);
                                 let function_name = old_fn.key().clone();
-                                println!("Warning: duplicate function coverage for {}", function_name);
+                                println!("Warning: duplicate function coverage for {} in file {}", function_name, filename);
                             },
                             std::collections::hash_map::Entry::Vacant(vacancy) => {
                                 vacancy.insert(function);
