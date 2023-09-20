@@ -121,6 +121,7 @@ fn main() {
             gcda_bytes.extend(std::iter::repeat(0u8).take(length));
 
             let gcda: Gcda = postcard::from_bytes(&gcda_bytes).unwrap();
+            println!("Received gcda file {}", &gcda.filepath);
             let builder = cov_builders.get_mut(&gcda.filepath).unwrap();
             builder.add_gcda(&gcda.data).unwrap();
         }
