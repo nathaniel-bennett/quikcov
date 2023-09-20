@@ -1,4 +1,4 @@
-#![feature(c_variadic)]
+//#![feature(c_variadic)]
 
 use std::{ffi::CStr, io::Write};
 
@@ -13,15 +13,14 @@ pub const QUIKCOV_PIPE_ENV: &str = "QUIKCOV_LDPRELOAD_PIPE_FD";
 
 // FIXME: what if the variadic argument `mode` isn't used? Could lead to UB...
 
-/*
+
 hook_macros::hook! {
-    unsafe fn openat(
-        dirfd: libc::c_int,
+    unsafe fn open(
         pathname: *const libc::c_char,
         flags: libc::c_int,
-        args: ...
-    ) -> libc::c_int => quikcov_openat {
-        let ret = hook_macros::real!(openat)(dirfd, pathname, flags, args);
+        mode: libc::mode_t
+    ) -> libc::c_int => quikcov_open {
+        let ret = hook_macros::real!(open)(pathname, flags, mode);
 
         let path_cstr = unsafe { CStr::from_ptr(pathname) };
         let len = path_cstr.to_bytes().len();
@@ -38,10 +37,11 @@ hook_macros::hook! {
         ret
     }
 }
-*/
+
 
 // We can't use hook_macros::hook! here as it doesn't support variadics
 
+/*
 pub struct OpenatStruct {__private_field: ()}
 static OPENAT_CONST: OpenatStruct = OpenatStruct {__private_field: ()};
 
@@ -77,8 +77,6 @@ pub unsafe extern fn openat(dirfd: libc::c_int, pathname: *const libc::c_char, f
     ret
 }
 
-
-
 pub unsafe extern fn openat_quikcov(dirfd: libc::c_int, pathname: *const libc::c_char, flags: libc::c_int, args: ...) -> libc::c_int {
     let ret = OPENAT_CONST.get()(dirfd, pathname, flags, args);
 
@@ -96,6 +94,7 @@ pub unsafe extern fn openat_quikcov(dirfd: libc::c_int, pathname: *const libc::c
 
     ret
 }
+*/
 
 
 
