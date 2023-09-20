@@ -27,7 +27,7 @@ impl ProgCoverage {
                                 //old_fn.get_mut().executed_blocks += function.executed_blocks;
                                 //old_fn.insert(function);
                                 let function_name = old_fn.key().clone();
-                                println!("Warning: duplicate function coverage for {} in file {}", function_name, filename);
+                                // println!("Warning: duplicate function coverage for {} in file {}", function_name, filename);
                             },
                             std::collections::hash_map::Entry::Vacant(vacancy) => {
                                 vacancy.insert(function);
