@@ -1,3 +1,5 @@
+#![feature(c_variadic)]
+
 use std::{ffi::CStr, io::Write};
 
 use state::FileInfo;
@@ -16,9 +18,9 @@ hook_macros::hook! {
         dirfd: libc::c_int,
         pathname: *const libc::c_char,
         flags: libc::c_int,
-        mode: libc::mode_t
+        ...
     ) -> libc::c_int => quikcov_openat {
-        let ret = hook_macros::real!(openat)(dirfd, pathname, flags, mode);
+        let ret = hook_macros::real!(openat)(dirfd, pathname, flags, ...);
 
         let path_cstr = unsafe { CStr::from_ptr(pathname) };
         let len = path_cstr.to_bytes().len();
