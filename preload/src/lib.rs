@@ -10,12 +10,13 @@ mod state;
 pub const QUIKCOV_PIPE_ENV: &str = "QUIKCOV_LDPRELOAD_PIPE_FD";
 
 // FIXME: what if the variadic argument `mode` isn't used? Could lead to UB...
+
 hook_macros::hook! {
     unsafe fn openat(
         dirfd: libc::c_int,
         pathname: *const libc::c_char,
         flags: libc::c_int,
-        mode: libc::c_int
+        mode: libc::mode_t
     ) -> libc::c_int => quikcov_openat {
         let ret = hook_macros::real!(openat)(dirfd, pathname, flags, mode);
 
@@ -54,6 +55,7 @@ hook_macros::hook! {
     unsafe fn close(
         fd: libc::c_int
     ) -> libc::ssize_t => quikcov_close {
+        
         if let Some(gcda_file) = state::gcda_files().lock().unwrap().remove(&fd) {
             // TODO: could add filename here...
             let file_len = gcda_file.data.len();
