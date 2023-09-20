@@ -63,8 +63,14 @@ fn main() {
 
     for cov_path in String::from_utf8(gcno_output.stdout).unwrap().split('\n') {
         let gcno_file = cov_path.trim();
+        if gcno_file.is_empty() {
+            continue
+        }
 
         let gcno_bytes = fs::read(gcno_file).unwrap();
+        if gcno_bytes.is_empty() {
+            continue
+        }
         let gcno = Gcno::from_slice(&gcno_bytes).unwrap();
 
         // FIXME: this is brittle if any other part of the file path has .gcno in it
@@ -98,6 +104,9 @@ fn main() {
                     child_fd: child_write_pipe.as_raw_fd(),
                 }
             ]).unwrap()
+            .stdin(Stdio::from(fs::File::open(seed_pathname).unwrap()))
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .spawn().unwrap();
         drop(child_write_pipe);
 
@@ -120,9 +129,19 @@ fn main() {
             panic!("no .gcno files found");
         };
 
-        let json_out = serde_json::to_vec(&coverage).unwrap();
-        std::fs::write(format!("{}/{}.coverage", &args.output, idx), json_out).unwrap();
+        let mut total_covered = 0;
+        let mut total_blocks = 0;
+        for file in coverage.files.values() {
+            for function in file.fns.values() {
+                total_covered += function.executed_blocks;
+                total_blocks += function.total_blocks;
+            }
+        }
 
+        //let json_out = serde_json::to_vec(&coverage).unwrap();
+        //std::fs::write(format!("{}/{}.coverage", &args.output, idx), json_out).unwrap();
+
+        println!("Covered {} blocks out of {} ({}%)", total_covered, total_blocks, (total_covered * 100) as f64 / (total_blocks as f64));
         // Make sure the old process has died before starting another
         process.wait().unwrap();
     }

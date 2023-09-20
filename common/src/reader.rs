@@ -317,7 +317,7 @@ impl FileCovBuilder {
         self.account_on_tree_arcs()?;
         self.account_lines()?;
 
-        let cwd = self.gcno.cwd.ok_or(Error::Value("file missing cwd"))?;
+        //let cwd = self.gcno.cwd.ok_or(Error::Value("file missing cwd"))?;
         let mut files = HashMap::with_hasher(FxBuildHasher::default());
 
         for function in self.gcno.functions {
@@ -332,9 +332,9 @@ impl FileCovBuilder {
 
             let fn_coverage = FnCoverage {
                 start_line: function.start_line,
-                start_col: function.start_col.ok_or(Error::Value("function missing start_col"))?,
-                end_line: function.end_line.ok_or(Error::Value("function missing end_line"))?,
-                end_col: function.end_col.ok_or(Error::Value("function missing end_col"))?,
+                start_col: function.start_col,
+                end_line: function.end_line,
+                end_col: function.end_col,
                 executed_blocks: function.blocks.iter().filter(|b| b.counter > 0).count(),
                 total_blocks: function.blocks.len(),
                 blocks,
@@ -351,7 +351,7 @@ impl FileCovBuilder {
         }
 
         Ok(ProgCoverage {
-            cwd,
+            cwd: self.gcno.cwd,
             files,
         })
     }
