@@ -62,7 +62,7 @@ impl OpenatStruct {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn openat(dirfd: libc::c_int, pathname: *const libc::c_char, flags: libc::c_int, args: ...) -> libc::c_int {
+pub unsafe extern fn openat(dirfd: libc::c_int, pathname: *const libc::c_char, flags: libc::c_int, args: ...) -> libc::c_int {
     let orig_hook = std::panic::take_hook();
 
     // in case openat_quikcov panics, this will immediately abort rather than unwinding and causing UB.
