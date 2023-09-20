@@ -24,10 +24,10 @@ impl ProgCoverage {
                     for (function_name, function) in file.fns.into_iter() {
                         match old_fns.entry(function_name) {
                             std::collections::hash_map::Entry::Occupied(mut old_fn) => {
-                                old_fn.get_mut().executed_blocks += function.executed_blocks;
+                                //old_fn.get_mut().executed_blocks += function.executed_blocks;
                                 //old_fn.insert(function);
-                                //let function_name = old_fn.key().clone();
-                                // println!("Warning: duplicate function coverage for {}", function_name);
+                                let function_name = old_fn.key().clone();
+                                println!("Warning: duplicate function coverage for {}", function_name);
                             },
                             std::collections::hash_map::Entry::Vacant(vacancy) => {
                                 vacancy.insert(function);
