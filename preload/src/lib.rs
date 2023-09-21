@@ -88,6 +88,7 @@ hook_macros::hook! {
                 drop(gcda_files);
 
                 let gcda_bytes = postcard::to_stdvec(&gcda_file).unwrap();
+                println!("sending gcda payload of size {}", gcda_bytes.len());
 
                 let mut ipc_writer = state::ipc_writer().lock().unwrap();
 
