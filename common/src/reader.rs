@@ -537,7 +537,11 @@ impl FileCovBuilder {
                 }
                 0 if reader.is_empty() => break,
                 0 => return Err(Error::TrailingBytes),
-                _ => return Err(Error::Value("unrecognized element tag in gcda file")),
+                elem_tag => {
+                    let length = reader.get_u32()? as usize;
+                    log::warn!("unrecognized element tag {}  of length {} found in gcda file", elem_tag, length);
+                    reader.discard(4 * length)?;
+                }
             }
         }
 
