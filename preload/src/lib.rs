@@ -20,21 +20,24 @@ hook_macros::hook! {
         flags: libc::c_int,
         mode: libc::mode_t
     ) -> libc::c_int => quikcov_open {
-        let ret = hook_macros::real!(open)(pathname, flags, mode);
+        let fd = hook_macros::real!(open)(pathname, flags, mode);
 
-        let path_cstr = unsafe { CStr::from_ptr(pathname) };
-        let len = path_cstr.to_bytes().len();
+        if fd >= 0 {
+            let path_cstr = unsafe { CStr::from_ptr(pathname) };
+            let len = path_cstr.to_bytes().len();
 
-        let is_gcda = path_cstr.to_bytes().get(len.saturating_sub(5)..).map(|suffix| suffix == b".gcda".as_slice()).unwrap_or(false);
+            let is_gcda = path_cstr.to_bytes().get(len.saturating_sub(5)..).map(|suffix| suffix == b".gcda".as_slice()).unwrap_or(false);
 
-        if is_gcda && ret >= 0 {
-            state::gcda_files().lock().unwrap().insert(ret, FileInfo {
-                path: path_cstr.to_str().unwrap().to_string(),
-                data: Vec::new(),
-            });
+            if is_gcda {
+                println!("observed .gcda file opening: {}", path_cstr.to_str().unwrap());
+                state::gcda_files().lock().unwrap().insert(fd, FileInfo {
+                    path: path_cstr.to_str().unwrap().to_string(),
+                    data: Vec::new(),
+                });
+            }
         }
 
-        ret
+        fd
     }
 }
 
