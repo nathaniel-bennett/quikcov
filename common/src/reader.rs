@@ -524,7 +524,7 @@ impl FileCovBuilder {
                     self.run_counts += if length == 9 { summary_reader.get_u32()? } else { run_counts };
 
                     if !summary_reader.is_empty() {
-                        log::info!("Object Summary element contained excess unread bytes");
+                        log::debug!("Object Summary element contained excess unread bytes");
                     }
 
                     // TODO: drain excess bytes
@@ -544,7 +544,7 @@ impl FileCovBuilder {
                     self.program_counts += 1;
 
                     if !summary_reader.is_empty() {
-                        log::info!("Program Summary element contained excess unread bytes");
+                        log::debug!("Program Summary element contained excess unread bytes");
                     }
                 }
                 0 if reader.is_empty() => break,
