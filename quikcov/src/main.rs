@@ -115,13 +115,18 @@ fn main() {
             let mut length_arr = [0u8; 4];
             parent_read_pipe.read_exact(&mut length_arr).unwrap();
             let length = u32::from_be_bytes(length_arr) as usize;
+            println!("Receiving gcda file of length {}", length);
 
             let mut gcda_bytes = Vec::new();
             gcda_bytes.reserve(length);
             gcda_bytes.extend(std::iter::repeat(0u8).take(length));
 
+            parent_read_pipe.read_exact(&mut gcda_bytes).unwrap();
+
             let gcda: Gcda = postcard::from_bytes(&gcda_bytes).unwrap();
+
             println!("Received gcda file {}", &gcda.filepath);
+
             let builder = cov_builders.get_mut(&gcda.filepath).unwrap();
             builder.add_gcda(&gcda.data).unwrap();
         }
