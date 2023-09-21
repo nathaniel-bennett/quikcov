@@ -29,7 +29,6 @@ hook_macros::hook! {
             let is_gcda = path_cstr.to_bytes().get(len.saturating_sub(5)..).map(|suffix| suffix == b".gcda".as_slice()).unwrap_or(false);
 
             if is_gcda {
-                println!("observed .gcda file opening: {}", path_cstr.to_str().unwrap());
                 state::gcda_files().lock().unwrap().insert(fd, FileInfo {
                     path: path_cstr.to_str().unwrap().to_string(),
                     data: Vec::new(),
@@ -99,10 +98,6 @@ pub unsafe extern fn openat_quikcov(dirfd: libc::c_int, pathname: *const libc::c
 }
 */
 
-
-
-
-
 hook_macros::hook! {
     unsafe fn write(
         fd: libc::c_int,
@@ -121,9 +116,10 @@ hook_macros::hook! {
 hook_macros::hook! {
     unsafe fn close(
         fd: libc::c_int
-    ) -> libc::ssize_t => quikcov_close {
+    ) -> libc::c_int => quikcov_close {
         
         if let Some(gcda_file) = state::gcda_files().lock().unwrap().remove(&fd) {
+            println!("closing gcda file {}", &gcda_file.path);
             // TODO: could add filename here...
             let file_len = gcda_file.data.len();
             let mut ipc_writer = state::ipc_writer().lock().unwrap();
