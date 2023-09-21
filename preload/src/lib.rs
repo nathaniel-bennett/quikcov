@@ -117,7 +117,7 @@ hook_macros::hook! {
     unsafe fn close(
         fd: libc::c_int
     ) -> libc::c_int => quikcov_close {
-        println!("closing file {}", &gcda_file.path);       
+        println!("closing file {}", fd);       
         if let Some(gcda_file) = state::gcda_files().lock().unwrap().remove(&fd) {
             println!("closing gcda file {}", &gcda_file.path);
             // TODO: could add filename here...
