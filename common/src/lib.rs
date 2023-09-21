@@ -29,9 +29,16 @@ impl ProgCoverage {
                                 log::info!("multiple function coverage objects for {}", function_name);
                                 
                                 if old_fn.get().total_blocks == function.total_blocks {
+                                    if old_fn.get().start_line != function.start_line {
+                                        log::warn!("start lines differed for {}", function_name);
+                                    }
+
+                                    if old_fn.get().lines.len() != function.lines.len() {
+                                        log::warn!("number of lines differed for {}", function_name);
+                                    }
                                     old_fn.get_mut().executed_blocks = std::cmp::max(old_fn.get().executed_blocks, function.executed_blocks);
                                 } else {
-                                    log::warn!("duplicat functions had differing block counts");
+                                    log::warn!("duplicate function {} had differing block counts", function_name);
                                 }
 
                                 //old_fn.get_mut().executed_blocks += function.executed_blocks;
