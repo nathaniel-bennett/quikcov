@@ -148,13 +148,76 @@ fn main() {
             }
         }
 
-        //let json_out = serde_json::to_vec(&coverage).unwrap();
-        //std::fs::write(format!("{}/{}.coverage", &args.output, idx), json_out).unwrap();
+        let json_out = serde_json::to_vec(&CoverageOne::new(coverage)).unwrap();
+        std::fs::write(format!("{}/{}.coverage", &args.output, idx), json_out).unwrap();
 
         println!("Covered {} blocks out of {} ({:.2}%)", total_covered, total_blocks, (total_covered * 100) as f64 / (total_blocks as f64));
         // Make sure the old process has died before starting another
         process.wait().unwrap();
     }
+}
+
+#[derive(Deserialize, Serialize)]
+struct CoverageOne {
+    covered_blocks: usize,
+    total_blocks: usize,
+    files: HashMap<String, CoverageFile, FxBuildHasher>,
+}
+
+impl CoverageOne {
+    pub fn new(cov: ProgCoverage) -> Self {
+        let mut covered_blocks = 0;
+        let mut total_blocks = 0;
+        let mut files = HashMap::with_hasher(FxBuildHasher::default());
+        for (name, file) in cov.files {
+            let cov_file = CoverageFile::new(file);
+            covered_blocks += cov_file.covered_blocks;
+            total_blocks += cov_file.total_blocks;
+            files.insert(name, cov_file);
+        }
+
+        Self {
+            covered_blocks,
+            total_blocks,
+            files,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+struct CoverageFile {
+    covered_blocks: usize,
+    total_blocks: usize,
+    fns: HashMap<String, CoverageFunction, FxBuildHasher>,
+}
+
+impl CoverageFile {
+    pub fn new(cov: FileCoverage) -> Self {
+        let mut covered_blocks = 0;
+        let mut total_blocks = 0;
+        let mut functions = HashMap::with_hasher(FxBuildHasher::default());
+        for (fn_name, function) in cov.fns {
+            covered_blocks += function.executed_blocks;
+            total_blocks += function.total_blocks;
+
+            functions.insert(fn_name, CoverageFunction {
+                covered_blocks: function.executed_blocks,
+                total_blocks: function.total_blocks,
+            });
+        }
+
+        Self {
+            covered_blocks,
+            total_blocks,
+            fns: functions,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+struct CoverageFunction {
+    covered_blocks: usize,
+    total_blocks: usize,
 }
 
 
