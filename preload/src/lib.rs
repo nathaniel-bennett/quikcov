@@ -53,8 +53,6 @@ hook_macros::hook! {
     }
 }
 
-
-
 hook_macros::hook! {
     unsafe fn write(
         fd: libc::c_int,
@@ -69,7 +67,6 @@ hook_macros::hook! {
         }
     }
 }
-
 
 hook_macros::hook! {
     unsafe fn fclose(
@@ -86,7 +83,7 @@ hook_macros::hook! {
                 ipc_writer.write_all(gcda_bytes.as_slice()).unwrap();
             }
         }
-        
+
         hook_macros::real!(fclose)(stream)
     }
 }

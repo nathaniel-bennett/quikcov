@@ -41,7 +41,7 @@ macro_rules! hook {
 
             #[no_mangle]
             pub unsafe extern fn $real_fn ( $($v : $t),* ) -> $r {
-                ::std::panic::catch_unwind(|| $hook_fn ( $($v),* )).unwrap_or_else(|_| $real_fn.get() ( $($v),* ))
+                ::std::panic::catch_unwind(|| $hook_fn ( $($v),* )).unwrap_or_else(|_| std::process::abort() )
             }
         }
 
