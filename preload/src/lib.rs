@@ -26,9 +26,15 @@ hook_macros::hook! {
             let is_gcda = path_cstr.to_bytes().get(len.saturating_sub(5)..).map(|suffix| suffix == b".gcda".as_slice()).unwrap_or(false);
 
             if is_gcda {
+                let mut filepath = path_cstr.to_str().unwrap().to_string();
+                if path_cstr.to_bytes().get(..15).map(|prefix| prefix == b"/proc/self/cwd/".as_slice()).unwrap_or(false) {
+                    let cwd = std::env::current_dir().unwrap();
+                    filepath = format!("{}/{}", cwd.to_str().unwrap(), &path_cstr.to_str().unwrap()[15..]);
+                }
+
                 let mut gcda_files = state::gcda_files().lock().unwrap();
                 gcda_files.insert(fd, Gcda {
-                    filepath: path_cstr.to_str().unwrap().to_string(),
+                    filepath,
                     data: Vec::new(),
                 });
                 drop(gcda_files);
