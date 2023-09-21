@@ -511,32 +511,47 @@ impl FileCovBuilder {
                 GCOV_TAG_FUNCTION => self.read_function(&mut reader)?,
                 GCOV_TAG_COUNTER_ARCS => self.read_arcs(&mut reader)?,
                 GCOV_TAG_OBJECT_SUMMARY => {
-                    log::trace!("parsing gcda object summary element");
+                    log::trace!("parsing gcda Object Summary element");
                     let length = reader.get_u32()? as usize * 4;
+                    if length == 0 {
+                        log::warn!("Object Summary element contained no bytes");
+                        continue
+                    }
 
-                    let run_counts = reader.get_u32()?;
-                    reader.get_u32()?; // skip unused value
-                    self.run_counts += if length == 9 { reader.get_u32()? } else { run_counts };
+                    let mut summary_reader = ByteReader::new(reader.get_bytes(length)?);
+                    let run_counts = summary_reader.get_u32()?;
+                    summary_reader.get_u32()?; // skip unused value
+                    self.run_counts += if length == 9 { summary_reader.get_u32()? } else { run_counts };
+
+                    if !summary_reader.is_empty() {
+                        log::info!("Object Summary element contained excess unread bytes");
+                    }
 
                     // TODO: drain excess bytes
                 }
                 GCOV_TAG_PROGRAM_SUMMARY => {
-                    log::trace!("parsing gcda function element");
-                    let length = reader.get_u32()? as usize;
-                    if length >= 3 {
-                        reader.get_u32()?; // skipp unused value
-                        reader.get_u32()?; // skipp unused value
-                        self.run_counts += reader.get_u32()?;
-                    } else if length != 0 {
-                        return Err(Error::Length)
+                    log::trace!("parsing gcda program summary element");
+                    let length = reader.get_u32()? as usize * 4;
+                    if length == 0 {
+                        log::warn!("Program Summary element contained no bytes");
+                        continue
                     }
+
+                    let mut summary_reader = ByteReader::new(reader.get_bytes(length)?);
+                    summary_reader.get_u32()?; // skip unused value
+                    summary_reader.get_u32()?; // skip unused value
+                    self.run_counts += summary_reader.get_u32()?;
                     self.program_counts += 1;
 
-                    // Drain excess bytes if applicable
-                    reader.discard(length.saturating_sub(3))?;
+                    if !summary_reader.is_empty() {
+                        log::info!("Program Summary element contained excess unread bytes");
+                    }
                 }
                 0 if reader.is_empty() => break,
-                0 => return Err(Error::TrailingBytes),
+                0 => {
+                    log::error!("element tag 0 reached yet .gcda file had trailing bytes");
+                    return Err(Error::TrailingBytes)
+                }
                 elem_tag => {
                     let length = reader.get_u32()? as usize;
                     log::warn!("unrecognized element tag {}  of length {} found in gcda file", elem_tag, length);
@@ -550,8 +565,9 @@ impl FileCovBuilder {
 
     fn read_function(&mut self, reader: &mut ByteReader<'_>) -> Result<(), Error> {
         log::trace!("parsing gcda function element");
-        let length = reader.get_u32()?;
+        let length = reader.get_u32()? as usize;
         if length == 0 {
+            log::warn!("empty function element (length = 0)");
             return Ok(())
         }
 
