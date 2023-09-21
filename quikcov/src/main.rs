@@ -86,6 +86,7 @@ fn main() {
     let mut sorted_seed_files: Vec<_> = fs::read_dir(args.seed_queue).unwrap().map(|file| file.unwrap()).collect();
     sorted_seed_files.sort_by_key(|file| file.path());
 
+    let mut prev_total_covered = 0;
     for (idx, seed_file) in sorted_seed_files.into_iter().enumerate() {
         let seed_pathname = seed_file.path().to_str().unwrap().to_string();
         if seed_pathname.contains("README.md") || seed_file.path().is_dir() || seed_file.path().file_name().unwrap().as_bytes()[0] == b'.' {
@@ -150,10 +151,12 @@ fn main() {
             }
         }
 
-        let json_out = serde_json::to_vec(&CoverageOne::new(coverage)).unwrap();
-        std::fs::write(format!("{}/{}.coverage", &args.output, idx), json_out).unwrap();
+        if prev_total_covered != total_covered {
+            let json_out = serde_json::to_vec(&CoverageOne::new(coverage)).unwrap();
+            std::fs::write(format!("{}/{}.coverage.json", &args.output, idx + 1), json_out).unwrap();
+        }
 
-        println!("Covered {} blocks out of {} ({:.2}%)", total_covered, total_blocks, (total_covered * 100) as f64 / (total_blocks as f64));
+        println!("{}: Covered {} blocks out of {} ({:.2}%)", idx + 1, total_covered, total_blocks, (total_covered * 100) as f64 / (total_blocks as f64));
         // Make sure the old process has died before starting another
         process.wait().unwrap();
     }
