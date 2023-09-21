@@ -128,8 +128,6 @@ fn main() {
 
             let gcda: Gcda = postcard::from_bytes(&gcda_bytes[..length]).unwrap();
 
-            println!("Received gcda file {}", &gcda.filepath);
-
             let builder = cov_builders.get_mut(&gcda.filepath).unwrap();
             builder.add_gcda(&gcda.data).unwrap();
         }
