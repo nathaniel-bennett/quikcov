@@ -124,7 +124,7 @@ fn main() {
                 gcda_bytes.extend(std::iter::repeat(0u8).take(length - gcda_bytes.len()));
             }
 
-            parent_read_pipe.read_exact(&mut gcda_bytes).unwrap();
+            parent_read_pipe.read_exact(&mut gcda_bytes[..length]).unwrap();
 
             let gcda: Gcda = postcard::from_bytes(&gcda_bytes[..length]).unwrap();
 
