@@ -148,7 +148,7 @@ fn main() {
         //let json_out = serde_json::to_vec(&coverage).unwrap();
         //std::fs::write(format!("{}/{}.coverage", &args.output, idx), json_out).unwrap();
 
-        println!("Covered {} blocks out of {} ({}%)", total_covered, total_blocks, (total_covered * 100) as f64 / (total_blocks as f64));
+        println!("Covered {} blocks out of {} ({:.2}%)", total_covered, total_blocks, (total_covered * 100) as f64 / (total_blocks as f64));
         // Make sure the old process has died before starting another
         process.wait().unwrap();
     }
