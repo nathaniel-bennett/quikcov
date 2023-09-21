@@ -75,6 +75,32 @@ hook_macros::hook! {
     }
 }
 
+
+hook_macros::hook! {
+    unsafe fn fwrite(
+        ptr: *mut libc::c_void,
+        size: libc::size_t,
+        nmemb: libc::size_t,
+        stream: *mut libc::FILE
+    ) -> libc::ssize_t => quikcov_fwrite {
+        let mut fd_map = state::fd_map().lock().unwrap();
+        if let Some(&fd) = fd_map.get(&(stream as usize)) {
+            drop(fd_map);
+            let mut gcda_files = state::gcda_files().lock().unwrap();
+            if let Some(gcda_file) = gcda_files.get_mut(&fd) {
+                gcda_file.data.extend_from_slice(std::slice::from_raw_parts(ptr as *const u8, size * nmemb));
+                drop(gcda_files);
+                return (size * nmemb) as isize
+            } else {
+                drop(gcda_files);
+            }
+        } else {
+            drop(fd_map);
+        }
+        hook_macros::real!(fwrite)(ptr, size, nmemb, stream)
+    }
+}
+
 hook_macros::hook! {
     unsafe fn fclose(
         stream: *mut libc::FILE
