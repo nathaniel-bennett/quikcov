@@ -86,12 +86,12 @@ hook_macros::hook! {
             let mut gcda_files = state::gcda_files().lock().unwrap();
             if let Some(gcda_file) = gcda_files.remove(&fd) {
                 drop(gcda_files);
-                println!("fd {} matched file values", fd);
-                let mut ipc_writer = state::ipc_writer().lock().unwrap();
 
                 let gcda_bytes = postcard::to_stdvec(&gcda_file).unwrap();
 
-                ipc_writer.write_all(&[0u8; 1]).unwrap();
+                let mut ipc_writer = state::ipc_writer().lock().unwrap();
+
+                ipc_writer.write_all([0u8; 1].as_slice()).unwrap();
                 ipc_writer.write_all((gcda_bytes.len() as u32).to_be_bytes().as_slice()).unwrap();
                 ipc_writer.write_all(gcda_bytes.as_slice()).unwrap();
                 drop(ipc_writer);

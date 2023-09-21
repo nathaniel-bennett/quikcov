@@ -114,7 +114,7 @@ fn main() {
         let mut gcda_bytes = Vec::new();
 
         let mut more_to_read = [0u8; 1];
-        while parent_read_pipe.read(&mut more_to_read).unwrap() != 0 {
+        while parent_read_pipe.read(more_to_read.as_mut_slice()).unwrap() != 0 {
             let mut length_arr = [0u8; 4];
             parent_read_pipe.read_exact(&mut length_arr).unwrap();
             let length = u32::from_be_bytes(length_arr) as usize;
