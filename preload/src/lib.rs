@@ -72,8 +72,11 @@ hook_macros::hook! {
     unsafe fn fclose(
         stream: *mut libc::FILE
     ) -> libc::c_int => quikcov_fclose {
+        println!("fclose called");
         if let Some(fd) = state::fd_map().lock().unwrap().remove(&(stream as usize)) {
+            println!("fd {} matched map", fd);
             if let Some(gcda_file) = state::gcda_files().lock().unwrap().remove(&fd) {
+                println!("fd {} matched file values", fd);
                 let mut ipc_writer = state::ipc_writer().lock().unwrap();
 
                 let gcda_bytes = postcard::to_stdvec(&gcda_file).unwrap();
