@@ -118,7 +118,6 @@ fn main() {
             let mut length_arr = [0u8; 4];
             parent_read_pipe.read_exact(&mut length_arr).unwrap();
             let length = u32::from_be_bytes(length_arr) as usize;
-            println!("Receiving gcda file of length {}", length);
 
             if length > gcda_bytes.len() {
                 gcda_bytes.reserve(length - gcda_bytes.len());

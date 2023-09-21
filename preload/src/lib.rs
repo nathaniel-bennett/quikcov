@@ -82,7 +82,7 @@ hook_macros::hook! {
         size: libc::size_t,
         nmemb: libc::size_t,
         stream: *mut libc::FILE
-    ) -> libc::ssize_t => quikcov_fwrite {
+    ) -> libc::size_t => quikcov_fwrite {
         let mut fd_map = state::fd_map().lock().unwrap();
         if let Some(&fd) = fd_map.get(&(stream as usize)) {
             drop(fd_map);
@@ -90,7 +90,7 @@ hook_macros::hook! {
             if let Some(gcda_file) = gcda_files.get_mut(&fd) {
                 gcda_file.data.extend_from_slice(std::slice::from_raw_parts(ptr as *const u8, size * nmemb));
                 drop(gcda_files);
-                return (size * nmemb) as isize
+                return nmemb as usize
             } else {
                 drop(gcda_files);
             }
@@ -114,8 +114,6 @@ hook_macros::hook! {
                 drop(gcda_files);
 
                 let gcda_bytes = postcard::to_stdvec(&gcda_file).unwrap();
-                println!("sending gcda payload of size {}", gcda_bytes.len());
-
                 let mut ipc_writer = state::ipc_writer().lock().unwrap();
 
                 ipc_writer.write_all([0u8; 1].as_slice()).unwrap();
