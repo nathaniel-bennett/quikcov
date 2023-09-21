@@ -10,6 +10,7 @@ clap = { version = "4.4", features = ["derive"] }
 command-fds = "0.2"
 env_logger = "0.10"
 fxhash = "0.2"
+log = "0.4"
 postcard = { version = "1.0", features = ["use-std"] }
 quikcov-common = { version = "0.1", path = "../common" }
 serde = { version = "1.0", features = ["derive"] }

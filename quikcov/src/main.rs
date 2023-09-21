@@ -90,7 +90,7 @@ fn main() {
             continue // Ignore README, dirs, and hidden files
         }
 
-        println!("Testing seed `{}`", seed_pathname);
+        log::info!("Testing seed file \"{}\"", seed_pathname);
         let cmd = &args.fuzz_command[0]; // FIXME: brittle
         let cmd_args = &args.fuzz_command[1..];
 
@@ -129,7 +129,7 @@ fn main() {
             let gcda: Gcda = postcard::from_bytes(&gcda_bytes[..length]).unwrap();
 
             let Some(builder) = cov_builders.get_mut(&gcda.filepath) else {
-                println!("skipping file {}", &gcda.filepath);
+                log::warn!("file {} not found--skipping", &gcda.filepath);
                 continue
             };
             builder.add_gcda(&gcda.data).unwrap();

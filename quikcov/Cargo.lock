@@ -370,6 +370,7 @@ dependencies = [
  "command-fds",
  "env_logger",
  "fxhash",
+ "log",
  "os_pipe",
  "postcard",
  "quikcov-common",
