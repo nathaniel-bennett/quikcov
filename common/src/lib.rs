@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::cmp;
 
 use serde::{Deserialize, Serialize};
 
@@ -24,27 +25,36 @@ impl ProgCoverage {
                     for (function_name, function) in file.fns.into_iter() {
 
                         match old_fns.entry(function_name) {
-                            std::collections::hash_map::Entry::Occupied(mut old_fn) => {
-                                let function_name = old_fn.key().clone();
-                                log::info!("multiple function coverage objects for {}", function_name);
-                                
-                                if old_fn.get().total_blocks == function.total_blocks {
-                                    if old_fn.get().start_line != function.start_line {
-                                        log::warn!("start lines differed for {}", function_name);
-                                    }
+                            std::collections::hash_map::Entry::Occupied(mut old_entry) => {
+                                // Based on experimentation, these are always the same in line count, start line, total blocks, etc.
 
-                                    if old_fn.get().lines.len() != function.lines.len() {
-                                        log::warn!("number of lines differed for {}", function_name);
-                                    }
-                                    old_fn.get_mut().executed_blocks = std::cmp::max(old_fn.get().executed_blocks, function.executed_blocks);
-                                } else {
-                                    log::warn!("duplicate function {} had differing block counts", function_name);
+                                if old_entry.get().total_blocks != function.total_blocks {
+                                    log::warn!("discarding duplicate function that had differing total_blocks: {}", old_entry.key());
+                                    continue
                                 }
 
-                                //old_fn.get_mut().executed_blocks += function.executed_blocks;
-                                //old_fn.insert(function);
+                                if old_entry.get().lines.len() != function.lines.len() {
+                                    log::warn!("discarding duplicate function that had differing total lines: {}", old_entry.key());
+                                    continue
+                                }
 
-                                // println!("Warning: duplicate function coverage for {} in file {}", function_name, filename);
+                                let old_function = old_entry.get_mut();
+                                
+                                // The new total executed blocks is the set addition of the two block counts
+                                let mut new_executed_blocks = 0;
+
+                                for (old_block, new_block) in old_function.blocks.iter_mut().zip(function.blocks.iter()) {
+                                    // TODO: should we sum the total executions here, or take the max of either?
+                                    // Why are there multiple files in the first place?
+                                    old_block.executions = cmp::max(old_block.executions, new_block.executions);
+                                    new_executed_blocks += if old_block.executions > 0 { 1 } else { 0 };
+                                }
+                                old_function.executed_blocks = new_executed_blocks;
+
+                                for (old_line, new_line) in old_function.lines.iter_mut().zip(function.lines.iter()) {
+                                    // TODO: same here as in prior for loop--sum, or max?
+                                    old_line.exec_count = cmp::max(old_line.exec_count, new_line.exec_count);
+                                }
                             },
                             std::collections::hash_map::Entry::Vacant(vacancy) => {
                                 vacancy.insert(function);
