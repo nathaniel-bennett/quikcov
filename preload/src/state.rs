@@ -4,14 +4,18 @@ use std::os::fd::FromRawFd;
 use std::collections::HashMap;
 
 use fxhash::FxBuildHasher;
+use serde::{Deserialize, Serialize};
 
 use crate::QUIKCOV_PIPE_ENV;
 
 static IPC_WRITER: OnceLock<Mutex<File>> = OnceLock::new();
-static GCDA_FILES: OnceLock<Mutex<HashMap<libc::c_int, FileInfo, FxBuildHasher>>> = OnceLock::new();
+static GCDA_FILES: OnceLock<Mutex<HashMap<libc::c_int, Gcda, FxBuildHasher>>> = OnceLock::new();
+static FD_MAP: OnceLock<Mutex<HashMap<usize, libc::c_int, FxBuildHasher>>> = OnceLock::new();
 
-pub struct FileInfo {
-    pub path: String,
+
+#[derive(Deserialize, Serialize)]
+pub struct Gcda {
+    pub filepath: String,
     pub data: Vec<u8>,
 }
 
@@ -23,6 +27,10 @@ pub fn ipc_writer() -> &'static Mutex<File> {
     })
 }
 
-pub fn gcda_files() -> &'static Mutex<HashMap<libc::c_int, FileInfo, FxBuildHasher>> {
+pub fn gcda_files() -> &'static Mutex<HashMap<libc::c_int, Gcda, FxBuildHasher>> {
     GCDA_FILES.get_or_init(|| Mutex::new(HashMap::with_hasher(FxBuildHasher::default())))
+}
+
+pub fn fd_map() -> &'static Mutex<HashMap<usize, libc::c_int, FxBuildHasher>> {
+    FD_MAP.get_or_init(|| Mutex::new(HashMap::with_hasher(FxBuildHasher::default())))
 }

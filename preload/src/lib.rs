@@ -2,7 +2,7 @@
 
 use std::{ffi::CStr, io::Write};
 
-use state::FileInfo;
+use state::Gcda;
 
 extern crate libc;
 
@@ -29,8 +29,8 @@ hook_macros::hook! {
             let is_gcda = path_cstr.to_bytes().get(len.saturating_sub(5)..).map(|suffix| suffix == b".gcda".as_slice()).unwrap_or(false);
 
             if is_gcda {
-                state::gcda_files().lock().unwrap().insert(fd, FileInfo {
-                    path: path_cstr.to_str().unwrap().to_string(),
+                state::gcda_files().lock().unwrap().insert(fd, Gcda {
+                    filepath: path_cstr.to_str().unwrap().to_string(),
                     data: Vec::new(),
                 });
             }
@@ -40,6 +40,21 @@ hook_macros::hook! {
     }
 }
 
+hook_macros::hook! {
+    unsafe fn fdopen(
+        fd: libc::c_int,
+        mode: *const libc::c_char
+    ) -> *mut libc::FILE => quikcov_fdopen {
+        let file = hook_macros::real!(fdopen)(fd, mode);
+
+        if file != std::ptr::null_mut() {
+            let file_ptr_value = file as usize;
+            state::fd_map().lock().unwrap().insert(file_ptr_value, fd);
+        }
+
+        file
+    }
+}
 
 // We can't use hook_macros::hook! here as it doesn't support variadics
 
@@ -113,6 +128,7 @@ hook_macros::hook! {
     }
 }
 
+/*
 hook_macros::hook! {
     unsafe fn close(
         fd: libc::c_int
@@ -128,5 +144,27 @@ hook_macros::hook! {
         }
         
         hook_macros::real!(close)(fd)
+    }
+}
+*/
+
+hook_macros::hook! {
+    unsafe fn fclose(
+        stream: *mut libc::FILE
+    ) -> libc::c_int => quikcov_fclose {
+        if let Some(fd) = state::fd_map().lock().unwrap().remove(&(stream as usize)) {
+            if let Some(gcda_file) = state::gcda_files().lock().unwrap().remove(&fd) {
+                let file_len = gcda_file.data.len();
+                let mut ipc_writer = state::ipc_writer().lock().unwrap();
+
+                let gcda_bytes = postcard::to_stdvec(&gcda_file).unwrap();
+
+                ipc_writer.write_all(&[0u8; 1]).unwrap();
+                ipc_writer.write_all((gcda_bytes.len() as u32).to_be_bytes().as_slice()).unwrap();
+                ipc_writer.write_all(gcda_bytes.as_slice()).unwrap();
+            }
+        }
+        
+        hook_macros::real!(fclose)(stream)
     }
 }
