@@ -44,6 +44,7 @@ struct Gcda {
 }
 
 fn main() {
+    env_logger::init();
     let args = Args::parse();
 
     // Clear any old .gcda files
@@ -110,6 +111,8 @@ fn main() {
             .spawn().unwrap();
         drop(child_write_pipe);
 
+        let mut gcda_bytes = Vec::new();
+
         let mut more_to_read = [0u8; 1];
         while parent_read_pipe.read(&mut more_to_read).unwrap() != 0 {
             let mut length_arr = [0u8; 4];
@@ -117,13 +120,14 @@ fn main() {
             let length = u32::from_be_bytes(length_arr) as usize;
             println!("Receiving gcda file of length {}", length);
 
-            let mut gcda_bytes = Vec::new();
-            gcda_bytes.reserve(length);
-            gcda_bytes.extend(std::iter::repeat(0u8).take(length));
+            if length > gcda_bytes.len() {
+                gcda_bytes.reserve(length - gcda_bytes.len());
+                gcda_bytes.extend(std::iter::repeat(0u8).take(length - gcda_bytes.len()));
+            }
 
             parent_read_pipe.read_exact(&mut gcda_bytes).unwrap();
 
-            let gcda: Gcda = postcard::from_bytes(&gcda_bytes).unwrap();
+            let gcda: Gcda = postcard::from_bytes(&gcda_bytes[..length]).unwrap();
 
             println!("Received gcda file {}", &gcda.filepath);
 
