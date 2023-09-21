@@ -26,10 +26,12 @@ hook_macros::hook! {
             let is_gcda = path_cstr.to_bytes().get(len.saturating_sub(5)..).map(|suffix| suffix == b".gcda".as_slice()).unwrap_or(false);
 
             if is_gcda {
-                state::gcda_files().lock().unwrap().insert(fd, Gcda {
+                let mut gcda_files = state::gcda_files().lock().unwrap();
+                gcda_files.insert(fd, Gcda {
                     filepath: path_cstr.to_str().unwrap().to_string(),
                     data: Vec::new(),
                 });
+                drop(gcda_files);
             }
         }
 
@@ -46,7 +48,9 @@ hook_macros::hook! {
 
         if file != std::ptr::null_mut() {
             let file_ptr_value = file as usize;
-            state::fd_map().lock().unwrap().insert(file_ptr_value, fd);
+            let mut fd_map = state::fd_map().lock().unwrap();
+            fd_map.insert(file_ptr_value, fd);
+            drop(fd_map);
         }
 
         file
@@ -59,10 +63,13 @@ hook_macros::hook! {
         buf: *const libc::c_void,
         count: libc::size_t
     ) -> libc::ssize_t => quikcov_write {
-        if let Some(gcda_file) = state::gcda_files().lock().unwrap().get_mut(&fd) {
+        let mut gcda_files = state::gcda_files().lock().unwrap();
+        if let Some(gcda_file) = gcda_files.get_mut(&fd) {
             gcda_file.data.extend_from_slice(std::slice::from_raw_parts(buf as *const u8, count));
+            drop(gcda_files);
             count as isize
         } else {
+            drop(gcda_files);
             hook_macros::real!(write)(fd, buf, count)
         }
     }
@@ -72,10 +79,13 @@ hook_macros::hook! {
     unsafe fn fclose(
         stream: *mut libc::FILE
     ) -> libc::c_int => quikcov_fclose {
-        println!("fclose called");
-        if let Some(fd) = state::fd_map().lock().unwrap().remove(&(stream as usize)) {
-            println!("fd {} matched map", fd);
-            if let Some(gcda_file) = state::gcda_files().lock().unwrap().remove(&fd) {
+        let mut fd_map = state::fd_map().lock().unwrap();
+        if let Some(fd) = fd_map.remove(&(stream as usize)) {
+            drop(fd_map);
+            // This locks up for some reason...
+            let mut gcda_files = state::gcda_files().lock().unwrap();
+            if let Some(gcda_file) = gcda_files.remove(&fd) {
+                drop(gcda_files);
                 println!("fd {} matched file values", fd);
                 let mut ipc_writer = state::ipc_writer().lock().unwrap();
 
@@ -84,7 +94,12 @@ hook_macros::hook! {
                 ipc_writer.write_all(&[0u8; 1]).unwrap();
                 ipc_writer.write_all((gcda_bytes.len() as u32).to_be_bytes().as_slice()).unwrap();
                 ipc_writer.write_all(gcda_bytes.as_slice()).unwrap();
+                drop(ipc_writer);
+            } else {
+                drop(gcda_files);
             }
+        } else {
+            drop(fd_map);
         }
 
         hook_macros::real!(fclose)(stream)
