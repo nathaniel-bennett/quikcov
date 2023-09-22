@@ -1,6 +1,5 @@
 use std::sync::{OnceLock, Mutex};
-use std::fs::File;
-use std::os::fd::FromRawFd;
+use std::os::fd::RawFd;
 use std::collections::HashMap;
 
 use fxhash::FxBuildHasher;
@@ -8,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::QUIKCOV_PIPE_ENV;
 
-static IPC_WRITER: OnceLock<Mutex<File>> = OnceLock::new();
+static IPC_WRITER: OnceLock<Mutex<RawFd>> = OnceLock::new();
 static GCDA_FILES: OnceLock<Mutex<HashMap<libc::c_int, Gcda, FxBuildHasher>>> = OnceLock::new();
 static FD_MAP: OnceLock<Mutex<HashMap<usize, libc::c_int, FxBuildHasher>>> = OnceLock::new();
 
@@ -19,11 +18,11 @@ pub struct Gcda {
     pub data: Vec<u8>,
 }
 
-pub fn ipc_writer() -> &'static Mutex<File> {
+pub fn ipc_writer() -> &'static Mutex<RawFd> {
     IPC_WRITER.get_or_init(|| {
         let pipe_str = std::env::vars().find(|(key, _)| key == QUIKCOV_PIPE_ENV).expect("missing QUIKCOV_PIPE_ENV environment variable").1;
         let pipe_fd: i32 = pipe_str.parse().expect("QUIKCOV_PIPE_ENV must contain a positive integer indicating a pipe file descriptor");
-        Mutex::new(unsafe { File::from_raw_fd(pipe_fd) })
+        Mutex::new(unsafe { RawFd::from(pipe_fd) })
     })
 }
 

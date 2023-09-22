@@ -119,12 +119,31 @@ hook_macros::hook! {
             if let Some(gcda_file) = gcda_files.remove(&fd) {
                 drop(gcda_files);
                 if !gcda_file.data.is_empty() {
+                    let mut message_bytes = vec![0u8];
                     let gcda_bytes = postcard::to_stdvec(&gcda_file).unwrap();
-                    let mut ipc_writer = state::ipc_writer().lock().unwrap();
+                    message_bytes.extend(&(gcda_bytes.len() as u32).to_be_bytes());
+                    message_bytes.extend(gcda_bytes);
 
-                    ipc_writer.write_all([0u8; 1].as_slice()).unwrap();
-                    ipc_writer.write_all((gcda_bytes.len() as u32).to_be_bytes().as_slice()).unwrap();
-                    ipc_writer.write_all(gcda_bytes.as_slice()).unwrap();
+                    let ipc_writer = state::ipc_writer().lock().unwrap();
+
+                    let mut total_written = 0;
+                    while total_written < message_bytes.len() {
+                        match hook_macros::real!(write)(*ipc_writer, message_bytes[total_written..].as_ptr() as *const libc::c_void, 1) {
+                            ..=-1 => match *libc::__errno_location() {
+                                libc::EINTR => continue,
+                                e => {
+                                    println!("quikcov write pipe error while writing: {} ({})", e, std::io::Error::from_raw_os_error(e));
+                                    std::process::abort();
+                                }
+                            }
+                            0 => {
+                                println!("quikcov write pipe closed--aborting...");
+                                std::process::abort();
+                            }
+                            new_written => total_written += new_written as usize,
+                        }
+                    }
+
                     drop(ipc_writer);
                 }
             } else {
