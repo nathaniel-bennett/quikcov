@@ -34,6 +34,9 @@ struct Args {
     /// The directory to store results in
     #[arg(short, long, value_name = "PATH")]
     output: String,
+    /// Instructs quikcov to prepend any absolute path reported in .gcno/.gcda files to the function location
+    #[arg(short, long)]
+    abs_path: bool,
     /// The command (and optionally arguments) that will run fuzzing
     #[arg(required = true)]
     fuzz_command: Vec<String>,
@@ -74,10 +77,18 @@ fn main() {
         if gcno_bytes.is_empty() {
             continue
         }
+
         let gcno = Gcno::from_slice(&gcno_bytes).unwrap();
 
         // FIXME: this is brittle if any other part of the file path has .gcno in it
-        let gcda_file = cov_path.replace(".gcno", ".gcda");
+
+        let mut gcda_file = cov_path.replace(".gcno", ".gcda");
+        if args.abs_path {
+            let Some(cwd_path) = gcno.cwd.clone() else {
+                panic!("abs-path flag set but no cwd located in .gcno files");
+            };
+            gcda_file = format!("{}/{}", cwd_path, gcda_file).replace("//", "/");
+        }
 
         cov_builders.insert(gcda_file, FileCovBuilder::new(gcno));
     }
