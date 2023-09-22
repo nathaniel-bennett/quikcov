@@ -114,7 +114,7 @@ hook_macros::hook! {
         let mut fd_map = state::fd_map().lock().unwrap();
         if let Some(fd) = fd_map.remove(&(stream as usize)) {
             drop(fd_map);
-            // This locks up for some reason...
+
             let mut gcda_files = state::gcda_files().lock().unwrap();
             if let Some(gcda_file) = gcda_files.remove(&fd) {
                 drop(gcda_files);
@@ -128,7 +128,7 @@ hook_macros::hook! {
 
                     let mut total_written = 0;
                     while total_written < message_bytes.len() {
-                        match hook_macros::real!(write)(*ipc_writer, message_bytes[total_written..].as_ptr() as *const libc::c_void, 1) {
+                        match hook_macros::real!(write)(*ipc_writer, message_bytes[total_written..].as_ptr() as *const libc::c_void, message_bytes[total_written..].len()) {
                             ..=-1 => match *libc::__errno_location() {
                                 libc::EINTR => continue,
                                 e => {
