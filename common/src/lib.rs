@@ -18,7 +18,7 @@ impl ProgCoverage {
             match self.files.entry(filename) {
                 std::collections::hash_map::Entry::Occupied(mut old_file) => {
                     if self.cwd != other.cwd {
-                        return Err(format!("cwd mismatch in program coverage during merge: `{:?}` vs `{:?}`", self.cwd, other.cwd))
+                        log::info!("cwd mismatch in program coverage during merge: `{:?}` vs `{:?}`", self.cwd, other.cwd);
                     }
 
                     let old_fns = &mut old_file.get_mut().fns;
