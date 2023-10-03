@@ -205,34 +205,38 @@ impl CoverageOne {
 struct CoverageFile {
     covered_blocks: usize,
     total_blocks: usize,
-    fns: HashMap<String, CoverageFunction, FxBuildHasher>,
+    //fns: HashMap<String, CoverageFunction, FxBuildHasher>,
 }
 
 impl CoverageFile {
     pub fn new(cov: FileCoverage) -> Self {
         let mut covered_blocks = 0;
         let mut total_blocks = 0;
-        let mut functions = HashMap::with_hasher(FxBuildHasher::default());
+        // let mut functions = HashMap::with_hasher(FxBuildHasher::default());
         for (fn_name, function) in cov.fns {
             covered_blocks += function.executed_blocks;
             total_blocks += function.total_blocks;
 
+            /*
             functions.insert(fn_name, CoverageFunction {
                 covered_blocks: function.executed_blocks,
                 total_blocks: function.total_blocks,
             });
+            */
         }
 
         Self {
             covered_blocks,
             total_blocks,
-            fns: functions,
+            // fns: functions,
         }
     }
 }
 
+/*
 #[derive(Deserialize, Serialize)]
 struct CoverageFunction {
     covered_blocks: usize,
     total_blocks: usize,
 }
+*/
