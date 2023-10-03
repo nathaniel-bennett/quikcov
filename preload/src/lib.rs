@@ -1,6 +1,6 @@
 //#![feature(c_variadic)]
 
-use std::{ffi::CStr, io::Write};
+use std::ffi::CStr;
 
 use state::Gcda;
 
@@ -89,7 +89,7 @@ hook_macros::hook! {
         nmemb: libc::size_t,
         stream: *mut libc::FILE
     ) -> libc::size_t => quikcov_fwrite {
-        let mut fd_map = state::fd_map().lock().unwrap();
+        let fd_map = state::fd_map().lock().unwrap();
         if let Some(&fd) = fd_map.get(&(stream as usize)) {
             drop(fd_map);
             let mut gcda_files = state::gcda_files().lock().unwrap();
