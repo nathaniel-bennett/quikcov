@@ -22,7 +22,7 @@ pub fn ipc_writer() -> &'static Mutex<RawFd> {
     IPC_WRITER.get_or_init(|| {
         let pipe_str = std::env::vars().find(|(key, _)| key == QUIKCOV_PIPE_ENV).expect("missing QUIKCOV_PIPE_ENV environment variable").1;
         let pipe_fd: i32 = pipe_str.parse().expect("QUIKCOV_PIPE_ENV must contain a positive integer indicating a pipe file descriptor");
-        Mutex::new(unsafe { RawFd::from(pipe_fd) })
+        Mutex::new(RawFd::from(pipe_fd))
     })
 }
 
