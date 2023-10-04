@@ -130,7 +130,10 @@ fn main() {
         let mut more_to_read = [0u8; 1];
         while parent_read_pipe.read(more_to_read.as_mut_slice()).unwrap() != 0 {
             let mut length_arr = [0u8; 4];
-            parent_read_pipe.read_exact(&mut length_arr).unwrap();
+            if let Err(e) = parent_read_pipe.read_exact(&mut length_arr) {
+                log::error!("Notify pipe failed during reading of coverage--program likely crashed. Skipping testcase...");
+                break
+            }
             let length = u32::from_be_bytes(length_arr) as usize;
 
             if length > gcda_bytes.len() {
@@ -138,15 +141,25 @@ fn main() {
                 gcda_bytes.extend(std::iter::repeat(0u8).take(length - gcda_bytes.len()));
             }
 
-            parent_read_pipe.read_exact(&mut gcda_bytes[..length]).unwrap();
+            if let Err(e) = parent_read_pipe.read_exact(&mut gcda_bytes[..length]) {
+                log::error!("Notify pipe failed during reading of coverage--program likely crashed. Skipping testcase...");
+                break
+            }
 
-            let gcda: Gcda = postcard::from_bytes(&gcda_bytes[..length]).unwrap();
+            let Ok(gcda) = postcard::from_bytes::<Gcda>(&gcda_bytes[..length]) else {
+                log::error!("postcard failed to interpret bytes passed from notify pipe. Skipping testcase...");
+                break
+            };
 
             let Some(builder) = cov_builders.get_mut(&gcda.filepath) else {
                 log::warn!("file {} not found--skipping", &gcda.filepath);
                 continue
             };
-            builder.add_gcda(&gcda.data).unwrap();
+
+            if let Err(e) = builder.add_gcda(&gcda.data) {
+                log::error!(".gcda file couldn't be added to builder--likely invalid format. Skipping...");
+                continue
+            }
         }
 
         let Some(coverage) = cov_builders.iter().map(|(_, builder)| builder.clone().build().unwrap()).reduce(|mut a, b| { a.merge(b).unwrap(); a }) else {
