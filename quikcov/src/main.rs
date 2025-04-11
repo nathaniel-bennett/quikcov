@@ -133,7 +133,7 @@ fn main() {
         while parent_read_pipe.read(more_to_read.as_mut_slice()).unwrap() != 0 {
             let mut length_arr = [0u8; 4];
             if let Err(e) = parent_read_pipe.read_exact(&mut length_arr) {
-                log::error!("Notify pipe failed during reading of coverage--program likely crashed. Skipping testcase...");
+                log::error!("Notify pipe failed during reading of coverage ({:?})--program likely crashed. Skipping testcase...", e);
                 break
             }
             let length = u32::from_be_bytes(length_arr) as usize;
@@ -159,7 +159,7 @@ fn main() {
             };
 
             if let Err(e) = builder.add_gcda(&gcda.data) {
-                log::error!(".gcda file couldn't be added to builder--likely invalid format. Skipping...");
+                log::error!(".gcda file couldn't be added to builder: {:?}. Skipping...", e);
                 continue
             }
         }
