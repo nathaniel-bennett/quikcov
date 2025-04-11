@@ -102,6 +102,9 @@ impl Gcno {
     pub fn from_slice(input: &[u8]) -> Result<Self, Error> {
         let mut reader = ByteReader::new(input);
 
+        // This parsing is all taken from the `read_graph_file()` function contained in `gcc/gcov.cc` in the gcc github project:
+        // `https://github.com/gcc-mirror/gcc/blob/master/gcc/gcov.cc#L2202`
+
         let Magic::Gcno = reader.get_magic_number()? else {
             log::error!("wrong file magic number encountered while decoding .gcno (expected .gcno, got .gcda");
             return Err(Error::Value(".gcda magic number where .gcno was expected"))
@@ -109,17 +112,27 @@ impl Gcno {
 
         let version = reader.get_version()?;
         log::debug!(".gcno file version {} detected", version);
+
+
+        // This gets added in commit 72e0c742bd01f8e7e6dcca64042b9ad7e75979de, which was subsequently released in GCC 11.3
+        let _bbg_stamp = if version >= 113 { Some(reader.get_u32()?) } else { None };
         let chksum = reader.get_u32()?;
         
-        let cwd = if version >= 90 { Some(reader.get_string()?) } else { None };
-        let _has_unexecuted_blocks = if version >= 80 { Some(reader.get_u32()?) } else { None };
+        let cwd = if version >= 90 { Some(reader.get_string(version)?) } else { None };
+        if let Some(cwd) = &cwd {
+            log::debug!("cwd={}", cwd);
+        }
+
+        // bbg_supports_has_unexecuted_blocks
+        let has_unexecuted_blocks = if version >= 80 { Some(reader.get_u32()?) } else { None };
+        log::debug!("has_unexecuted_blocks={:?}", has_unexecuted_blocks);
 
         let mut ident_fn_idx = HashMap::with_hasher(FxBuildHasher::default());
         let mut functions = Vec::new();
 
         while !reader.is_empty() {
             let tag = reader.get_u32()?;
-            
+
             match tag {
                 0 => if !reader.is_empty() {
                     log::error!("null tag reached while reader had bytes remaining in .gcno file");
@@ -158,9 +171,12 @@ impl Gcno {
                 }
                 elem_tag => {
                     log::warn!("unrecognized element tag {} found in gcno file", elem_tag);
-                    let length = reader.get_u32()? as usize;
+                    let mut length = reader.get_u32()? as usize;
+                    if version < 130 {
+                        length = length * 4;
+                    }
                     log::debug!("unrecognized element tag {} had length {}", elem_tag, length);
-                    reader.discard(4 * length)?;
+                    reader.discard(length)?;
                 }
             }
         }
@@ -175,21 +191,25 @@ impl Gcno {
     }
 
     fn read_function(reader: &mut ByteReader<'_>, version: u32) -> Result<GcnoFunction, Error> {
-        let length = reader.get_u32()? as usize;
-        let Some(remainder) = reader.remainder().get(..4 * length) else {
-            log::error!("insufficient bytes to satisfy length {} requirement for function", 4 * length);
+        let mut length = reader.get_u32()? as usize;
+        if version < 130 {
+            length = length * 4;
+        }
+
+        let Some(remainder) = reader.remainder().get(..length) else {
+            log::error!("insufficient bytes to satisfy length {} requirement for function", length);
             return Err(Error::InsufficientBytes)
         };
-        reader.discard(4 * length)?;
+        reader.discard(length)?;
         let mut reader = ByteReader::new(remainder);
 
         let function = GcnoFunction {
             ident: reader.get_u32()?,
             line_chksum: reader.get_u32()?,
             cfg_chksum: if version >= 47 { Some(reader.get_u32()?) } else { None },
-            name: reader.get_string()?,
+            name: reader.get_string(version)?,
             artificial: if version >= 80 { Some(reader.get_u32()?) } else { None },
-            file_name: reader.get_string()?,
+            file_name: reader.get_string(version)?,
             start_line: reader.get_u32()?,
             start_col: if version >= 80 { Some(reader.get_u32()?) } else { None },
             end_line: if version >= 80 { Some(reader.get_u32()?) } else { None },
@@ -273,7 +293,7 @@ impl Gcno {
         loop {
             let line = reader.get_u32()?;
             if line == 0 {
-                let filename = reader.get_string()?;
+                let filename = reader.get_string(version)?;
                 if filename.is_empty() {
                     break
                 } else {
@@ -512,7 +532,11 @@ impl FileCovBuilder {
                 GCOV_TAG_COUNTER_ARCS => self.read_arcs(&mut reader)?,
                 GCOV_TAG_OBJECT_SUMMARY => {
                     log::trace!("parsing gcda Object Summary element");
-                    let length = reader.get_u32()? as usize * 4;
+                    let mut length = reader.get_u32()? as usize;
+                    if version < 130 {
+                        length = length * 4;
+                    }
+
                     if length == 0 {
                         log::warn!("Object Summary element contained no bytes");
                         continue
@@ -531,7 +555,11 @@ impl FileCovBuilder {
                 }
                 GCOV_TAG_PROGRAM_SUMMARY => {
                     log::trace!("parsing gcda program summary element");
-                    let length = reader.get_u32()? as usize * 4;
+                    let mut length = reader.get_u32()? as usize;
+                    if version < 130 {
+                        length = length * 4;
+                    }
+
                     if length == 0 {
                         log::warn!("Program Summary element contained no bytes");
                         continue
@@ -553,9 +581,12 @@ impl FileCovBuilder {
                     return Err(Error::TrailingBytes)
                 }
                 elem_tag => {
-                    let length = reader.get_u32()? as usize;
+                    let mut length = reader.get_u32()? as usize;
+                    if version < 130 {
+                        length = length * 4;
+                    }
                     log::warn!("unrecognized element tag {}  of length {} found in gcda file", elem_tag, length);
-                    reader.discard(4 * length)?;
+                    reader.discard(length)?;
                 }
             }
         }
@@ -683,8 +714,14 @@ impl<'a> ByteReader<'a> {
     }
 
     #[inline]
-    pub fn get_string(&mut self) -> Result<String, Error> {
-        let length = self.get_u32()? as usize * 4;
+    pub fn get_string(&mut self, version: u32) -> Result<String, Error> {
+        // This changed in commit 23eb66d1d46a34cb28c4acbdf8a1deb80a7c5a05, which was included in version 13.0
+
+        let mut length = self.get_u32()? as usize;
+        if version < 130 {
+            length = length * 4;
+        }
+
         if length == 0 {
             Ok(String::default())
         } else {

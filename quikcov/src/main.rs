@@ -73,6 +73,8 @@ fn main() {
             continue
         }
 
+        log::debug!("reading .gcno file \"{}\"", gcno_file);
+
         let gcno_bytes = fs::read(gcno_file).unwrap();
         if gcno_bytes.is_empty() {
             continue
