@@ -523,6 +523,11 @@ impl FileCovBuilder {
             return Err(Error::Value("file type gcda needed but gcno found"))
         };
         let version = reader.get_version()?;
+
+        if version >= 113 {
+            let _bbg_stamp = reader.get_u32()?;
+        }
+
         let chksum = reader.get_u32()?;
 
         if version != self.gcno.version {
@@ -536,8 +541,8 @@ impl FileCovBuilder {
         while !reader.is_empty() {
             let tag = reader.get_u32()?;
             match tag {
-                GCOV_TAG_FUNCTION => self.read_function(&mut reader)?,
-                GCOV_TAG_COUNTER_ARCS => self.read_arcs(&mut reader)?,
+                GCOV_TAG_FUNCTION => self.read_function(&mut reader, version)?,
+                GCOV_TAG_COUNTER_ARCS => self.read_arcs(&mut reader, version)?,
                 GCOV_TAG_OBJECT_SUMMARY => {
                     log::trace!("parsing gcda Object Summary element");
                     let mut length = reader.get_u32()? as usize;
@@ -554,6 +559,7 @@ impl FileCovBuilder {
                     let run_counts = summary_reader.get_u32()?;
                     summary_reader.get_u32()?; // skip unused value
                     self.run_counts += if length == 9 { summary_reader.get_u32()? } else { run_counts };
+                    // TODO: the above looks messy...
 
                     if !summary_reader.is_empty() {
                         log::trace!("Object Summary element contained excess unread bytes");
@@ -590,6 +596,11 @@ impl FileCovBuilder {
                 }
                 elem_tag => {
                     let mut length = reader.get_u32()? as usize;
+
+                    if length >= 0x80_00_00_00 {
+                        length = 0;
+                    }
+
                     if version < 130 {
                         length = length * 4;
                     }
@@ -602,7 +613,7 @@ impl FileCovBuilder {
         Ok(())
     }
 
-    fn read_function(&mut self, reader: &mut ByteReader<'_>) -> Result<(), Error> {
+    fn read_function(&mut self, reader: &mut ByteReader<'_>, version: u32) -> Result<(), Error> {
         log::trace!("parsing gcda function element");
         let length = reader.get_u32()? as usize;
         if length == 0 {
@@ -610,13 +621,21 @@ impl FileCovBuilder {
             return Ok(())
         }
 
-        if length != 3 {
+        let expected_length = if version >= 130 {
+            3 * 4
+        } else if version >= 47 {
+            3
+        } else {
+            2
+        };
+
+        if length != expected_length {
             return Err(Error::Length)
         }
 
         let function_id = reader.get_u32()?;
         let line_chksum = reader.get_u32()?;
-        let cfg_chksum = if self.gcno.version >= 47 { Some(reader.get_u32()?) } else { None };
+        let cfg_chksum = if version >= 47 { Some(reader.get_u32()?) } else { None };
 
         let Some(function_idx) = self.gcno.ident_fn_idx.get(&function_id) else {
             return Err(Error::Value("invalid function identifier--does not map to any function in corresponding gcno file"))
@@ -635,20 +654,32 @@ impl FileCovBuilder {
         Ok(())
     }
 
-    fn read_arcs(&mut self, reader: &mut ByteReader<'_>) -> Result<(), Error> {
+    fn read_arcs(&mut self, reader: &mut ByteReader<'_>, version: u32) -> Result<(), Error> {
         log::trace!("parsing gcda arcs element");
-        let length = reader.get_u32()? as usize;
+        let length = reader.get_u32()?;
+        if length >= 0x80_00_00_00 {
+            return Ok(())
+            //length = (u32::MAX - length) + 1;
+            // TODO: this is what the code appears to do... but in reality .gcda files skip negative lengths?
+        }
 
         let Some(function_idx) = self.current_fn_idx else {
             return Ok(())
         };
 
+        let mut arcs_reader = ByteReader::new(reader.get_bytes(length as usize)?);
+
         let Some(function) = self.gcno.functions.get_mut(function_idx) else {
             return Err(Error::Value("internal: invalid function index for function identifier while parsing arcs"))
         };
 
+        let edge_count = if version >= 130 {
+            (length / 4) / 2
+        } else {
+            length / 2
+        } as usize;
 
-        if function.real_edge_cnt != length / 2 {
+        if function.real_edge_cnt != edge_count {
             return Err(Error::Value("incorrect number of edges found for function in gcda"))
         }
 
@@ -658,11 +689,11 @@ impl FileCovBuilder {
             }
 
             let block = function.blocks.get_mut(edge.src).ok_or(Error::Value("edge source id exceeded maximum block id"))?;
-            let counter = reader.get_u64()?;
+            let counter = arcs_reader.get_u64()?;
             block.counter += counter;
             edge.counter += counter;
         }
-        
+
 
         Ok(())
     }
