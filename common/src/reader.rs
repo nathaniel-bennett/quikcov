@@ -11,10 +11,15 @@ const GCOV_ARC_FAKE: u32 = 1 << 1;
 const GCOV_TAG_FUNCTION: u32 = 0x0100_0000;
 const GCOV_TAG_BLOCKS: u32 = 0x0141_0000;
 const GCOV_TAG_ARCS: u32 = 0x0143_0000;
+const GCOV_TAG_CONDS: u32 = 0x0147_0000;
+const GCOV_TAG_PATHS: u32 = 0x0149_0000;
 const GCOV_TAG_LINES: u32 = 0x0145_0000;
 const GCOV_TAG_COUNTER_ARCS: u32 = 0x01a1_0000;
 const GCOV_TAG_OBJECT_SUMMARY: u32 = 0xa100_0000;
 const GCOV_TAG_PROGRAM_SUMMARY: u32 = 0xa300_0000;
+const GCOV_TAG_AFDO_FILE_NAMES: u32 = 0xaa00_0000;
+const GCOV_TAG_AFDO_FUNCTION: u32 = 0xac00_0000;
+const GCOV_TAG_AFDO_WORKING_SET: u32 = 0xaf00_0000;
 
 // We don't currently support GCC < 8
 
@@ -244,7 +249,10 @@ impl Gcno {
     }
 
     fn read_arcs(reader: &mut ByteReader<'_>, function: &mut GcnoFunction) -> Result<(), Error> {
-        let count = ((reader.get_u32()?.checked_sub(1).ok_or(Error::InsufficientBytes)?) / 2) as usize;
+        let length = reader.get_u32()? as usize;
+
+        // TODO: didn't used to have / 4--version change?
+        let count = (((length / 4).checked_sub(1).ok_or(Error::InsufficientBytes)?) / 2) as usize;
         let block_id = reader.get_u32()? as usize;
 
         let Some(block) = function.blocks.get_mut(block_id) else {
@@ -639,6 +647,7 @@ impl FileCovBuilder {
             return Err(Error::Value("internal: invalid function index for function identifier while parsing arcs"))
         };
 
+
         if function.real_edge_cnt != length / 2 {
             return Err(Error::Value("incorrect number of edges found for function in gcda"))
         }
@@ -650,10 +659,10 @@ impl FileCovBuilder {
 
             let block = function.blocks.get_mut(edge.src).ok_or(Error::Value("edge source id exceeded maximum block id"))?;
             let counter = reader.get_u64()?;
-
             block.counter += counter;
             edge.counter += counter;
         }
+        
 
         Ok(())
     }
