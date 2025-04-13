@@ -534,9 +534,12 @@ impl FileCovBuilder {
             return Err(Error::VersionMismatch)
         }
 
+        // Checksums are currently not working in GCC 13.3
+        /*
         if chksum != self.gcno.chksum {
             return Err(Error::Checksum)
         }
+        */
 
         while !reader.is_empty() {
             let tag = reader.get_u32()?;
@@ -645,9 +648,12 @@ impl FileCovBuilder {
             return Err(Error::Value("internal: invalid function index for function identifier while parsing functions"))
         };
 
+        // Checksums currently not working in GCC 13.3
+        /*
         if line_chksum != function.line_chksum || cfg_chksum != function.cfg_chksum {
             return Err(Error::Checksum)
         }
+        */
 
         self.current_fn_idx = Some(*function_idx);
 
