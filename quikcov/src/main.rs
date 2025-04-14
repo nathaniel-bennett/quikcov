@@ -153,6 +153,8 @@ fn main() {
                 break
             };
 
+            log::info!("received .gcda file: {:?}", &gcda.filepath);
+
             let Some(builder) = cov_builders.get_mut(&gcda.filepath) else {
                 log::warn!("file {} not found--skipping", &gcda.filepath);
                 continue
